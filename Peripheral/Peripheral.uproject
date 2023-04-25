@@ -54,6 +54,10 @@
 				"HoloLens",
 				"Android"
 			]
+		},
+		{
+			"Name": "Water",
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [
