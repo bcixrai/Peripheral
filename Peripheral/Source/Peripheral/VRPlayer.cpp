@@ -6,12 +6,12 @@
 #include "Peripheral.h"
 #include "PeripheralGameInstance.h"
 #include "MotionControllerComponent.h"
-
+#include "PeripheralHandActor.h"
 //Components
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GrabComponent.h"
-
+#include "BCIHandComponent.h"
 //Misc
 #include "Interactable.h"
 #include "NavigationSystem.h"
@@ -32,22 +32,26 @@ AVRPlayer::AVRPlayer()
 
 	//UHeadMountedDisplayFunctionLibrary::ResetOrientationAndPosition();
 	
+	mRoot = CreateAbstractDefaultSubobject<USceneComponent>(TEXT("Root"));
+	SetRootComponent(mRoot);
 	//Camera
 	//mVROrigin = CreateDefaultSubobject<USceneComponent>(TEXT("VR_Origin_1"));
 	//mCameraOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("Camera Origin"));
 	//mVROrigin->SetupAttachment(GetCapsuleComponent());
 	//mCameraOrigin->SetupAttachment(GetCapsuleComponent());
 	////
-	//mCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
-	//mCamera->SetupAttachment(mVROrigin);
+	mCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
+	mCamera->SetupAttachment(RootComponent);
 	////	
 	//// Create VR Controllers.
-	//mRightMC = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("Right_MotionController"));
+	mRightMC = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("Right_MotionController"));
+	mRightMC->MotionSource = "Right";
 	//mRightMC->MotionSource = FXRMotionControllerBase::RightHandSourceId; //idk why this is done
-	//mRightMC->SetupAttachment(mVROrigin);
-	//
-	//mLeftMC = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("Left_MotionController"));
-	//mLeftMC->SetupAttachment(mVROrigin);
+	mRightMC->SetupAttachment(mVROrigin);
+	
+	mLeftMC = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("Left_MotionController"));
+	mLeftMC->MotionSource = "Left";
+	mLeftMC->SetupAttachment(mVROrigin);
 
 	//TODO : THIS MAY NOT BE USED; THIS IS TEMPORARY
 	//mRightHandChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("Right Hand Child Actor"));
@@ -79,7 +83,8 @@ AVRPlayer::AVRPlayer()
 	//Teleportation
 	mTeleportGraphic = CreateDefaultSubobject<USceneComponent>(TEXT("TeleportGraphic"));
 	mTeleportAimStart = CreateDefaultSubobject<USceneComponent>(TEXT("TeleportAimStart"));
-
+	//auto hand = CreateDefaultSubobject<APeripheralHandActor>(mHandActorBP);
+	//mHands.Add({ right, hand });
 }
 
 // Called when the game starts or when spawned
@@ -118,10 +123,12 @@ void AVRPlayer::BeginPlay()
 		bVR = false;
 		mRightMC->SetHiddenInGame(true);
 		mLeftMC->SetHiddenInGame(true);
+		bUseControllerRotationYaw = true;
 	}
 	if (mode == VR_BCI) {
 		//Here we want normal VR with BCI hand override enabled
 
+		//We want active BCI hand
 	}
 	if (mode == VR) {
 		//Normal VR without any overrides, 
@@ -130,9 +137,11 @@ void AVRPlayer::BeginPlay()
 	if (mode == BCI) {
 		//Here we want normal FPS controls, no VR, with a hand that can be overriden
 		//mOverridenHand = mRightMC;
+
+		//We want active BCI
 	}
 
-
+	SetBCIMode(mode);
 	SetCameraMode(mode);
 
 	//What do we want to do different here
@@ -163,6 +172,9 @@ void AVRPlayer::Tick(float DeltaTime)
 		//AlignHandAndMotionController(right);
 	}
 
+	if (bDebug) {
+		Debug();
+	}
 	
 
 	if (bTeleporting) {
@@ -190,24 +202,6 @@ void AVRPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	InputComponent->BindAction("GrabRight", IE_Pressed, this, &AVRPlayer::GripRightHand_Pressed);
-	InputComponent->BindAction("GrabRight", IE_Released, this, &AVRPlayer::GripRightHand_Released);
-
-	InputComponent->BindAction("GrabLeft", IE_Pressed, this,   &AVRPlayer::GripLeftHand_Pressed);
-	InputComponent->BindAction("GrabLeft", IE_Released, this,  &AVRPlayer::GripLeftHand_Released);
-
-	InputComponent->BindAction("Teleport", IE_Pressed, this, &AVRPlayer::Teleport_Pressed);
-	InputComponent->BindAction("Teleport", IE_Pressed, this, &AVRPlayer::Teleport_Released);
-
-
-	InputComponent->BindAction("Right_Interact", IE_Pressed, this,  &AVRPlayer::Right_Interact_Pressed);
-	InputComponent->BindAction("Right_Interact", IE_Released, this,  &AVRPlayer::Right_Interact_Pressed);
-
-	InputComponent->BindAction("Left_Interact", IE_Pressed, this, &AVRPlayer::Left_Interact_Pressed);
-	InputComponent->BindAction("Left_Interact", IE_Released, this, &AVRPlayer::Left_Interact_Pressed);
-
-	InputComponent->BindAction("Interact", IE_Pressed, this, &AVRPlayer::Interact_Pressed);
-
 	// Bind movement events
 	InputComponent->BindAxis("MoveForward", this, &AVRPlayer::MoveForward);
 	InputComponent->BindAxis("MoveRight", this, &AVRPlayer::MoveRight);
@@ -215,23 +209,50 @@ void AVRPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	InputComponent->BindAxis("Turn", this, &AVRPlayer::Turn);
 	InputComponent->BindAxis("LookUp", this, &AVRPlayer::LookUp);
 
-	// Bind jump events
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
+	//Teleportation for VR Controlelrs
+	InputComponent->BindAction("Teleport", IE_Pressed, this, &AVRPlayer::Teleport_Pressed);
+	InputComponent->BindAction("Teleport", IE_Pressed, this, &AVRPlayer::Teleport_Released);
+
+	//Grabbing for VR Controllers
+	InputComponent->BindAction("GrabRight", IE_Pressed, this, &AVRPlayer::GripRightHand_Pressed);
+	InputComponent->BindAction("GrabRight", IE_Released, this, &AVRPlayer::GripRightHand_Released);
+
+	InputComponent->BindAction("GrabLeft", IE_Pressed, this,   &AVRPlayer::GripLeftHand_Pressed);
+	InputComponent->BindAction("GrabLeft", IE_Released, this,  &AVRPlayer::GripLeftHand_Released);
+
+	//Interaction for VR Controllers
+	InputComponent->BindAction("Right_Interact", IE_Pressed, this,  &AVRPlayer::Right_Interact_Pressed);
+	InputComponent->BindAction("Right_Interact", IE_Released, this,  &AVRPlayer::Right_Interact_Pressed);
+
+	InputComponent->BindAction("Left_Interact", IE_Pressed, this, &AVRPlayer::Left_Interact_Pressed);
+	InputComponent->BindAction("Left_Interact", IE_Released, this, &AVRPlayer::Left_Interact_Pressed);
+
+	//Interaciton for Normal & BCI mode
+	InputComponent->BindAction("Interact", IE_Pressed, this, &AVRPlayer::Interact_Pressed);
+	InputComponent->BindAction("Interact", IE_Released, this, &AVRPlayer::Interact_Released);
+
+
 }
+
+void AVRPlayer::Debug() {
+
+
+
+}
+
 void AVRPlayer::SetCameraMode(EPeripheralMode mode)
 {
 	if (mode == VR || mode == VR_BCI) {
 		mCamera->bLockToHmd = true;
-		mCamera->bUsePawnControlRotation = false;
+		//mCamera->bUsePawnControlRotation = false;
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To VR")));
 	}
 	else {
-		mCamera->SetRelativeLocation(FVector(-39.56f, 1.75f, 64.f)); // Position the camera
+		//mCamera->SetRelativeLocation(FVector(0, 1.75f, 0)); // Position the camera
 		mCamera->bLockToHmd = false;
-
+		//
 		mCamera->bUsePawnControlRotation = true;
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To NORMAL")));
+		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To NORMAL")));
 	}
 }
 #pragma region FPS Controls
@@ -239,8 +260,9 @@ void AVRPlayer::MoveForward(float value)
 {
 	if (value != 0.0f)
 	{
+		FVector dir = bFlyingCamera ? mCamera->GetForwardVector() : GetActorForwardVector();
 		// add movement in that direction
-		AddMovementInput(GetActorForwardVector(), value);
+		AddMovementInput(dir, value);
 	}
 }
 
@@ -248,6 +270,7 @@ void AVRPlayer::MoveRight(float value)
 {
 	if (value != 0.0f)
 	{
+		FVector dir = bFlyingCamera ? mCamera->GetRightVector() : GetActorRightVector();
 		// add movement in that direction
 		AddMovementInput(GetActorRightVector(), value);
 	}
@@ -261,6 +284,37 @@ void AVRPlayer::LookUp(float value)
 	AddControllerPitchInput(value * mLookUpRate * GetWorld()->GetDeltaSeconds());
 }
 #pragma endregion
+
+#pragma region BCI
+void AVRPlayer::SetBCIMode(EPeripheralMode mode)
+{
+	if (!(mode == BCI || mode == VR_BCI)) {
+		if (mBCIHand) {
+			mBCIHand->SetHiddenInGame(true);
+			mBCIHand->SetComponentTickEnabled(false);
+		}
+		return;
+	}
+	//Okay we want an active BCI controlled hand
+	//Are we overrding a specific hand or doesnt it matter
+	if (bDisableVRMCInBCIMode) {
+		auto hand = mHandsMap[mBCIOverridenHandSide];
+		if (!hand) {
+			return;
+		}
+		hand->SetActorHiddenInGame(true);
+		hand->SetActorEnableCollision(false);
+		hand->SetActorTickEnabled(false);
+	}
+	//Wheter we disable the hand or not, its now done
+
+	//Now what do we do with the bci hand ? Enable it aleast
+	mBCIHand;
+
+}
+
+#pragma endregion
+
 
 #pragma region VR
 void AVRPlayer::AlignHandAndMotionController(APeripheralHandActor* hand, UMotionControllerComponent* mc)
@@ -334,7 +388,6 @@ void AVRPlayer::GripRightHand_Pressed()
 	if (!grab) {
 		return;
 	}
-
 
 	if (mGrabs[mLeftMC] == grab) {
 		if (!mGrabs[mLeftMC]->TryRelease()) {
@@ -581,6 +634,7 @@ void AVRPlayer::Interact_Released(UMotionControllerComponent* mc)
 
 void AVRPlayer::Interact_Pressed()
 {
+	
 	auto start = mCamera->GetComponentLocation();
 	auto end = mCamera->GetComponentLocation() + (mCamera->GetForwardVector() * mInteractionRange);
 
@@ -643,6 +697,7 @@ void AVRPlayer::Interact_Pressed()
 
 void AVRPlayer::Interact_Released()
 {
+
 }
 
 IInteractable* AVRPlayer::GetNearestInteractable(FVector location)
@@ -651,7 +706,7 @@ IInteractable* AVRPlayer::GetNearestInteractable(FVector location)
 	auto interactables = GetNearbyInteractables(location);
 
 	//Debug
-	if (Debug()) {
+	if (bDebug) {
 		
 	}
 	//Iterate trough distance
