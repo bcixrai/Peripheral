@@ -3,15 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "GameFramework/Pawn.h"
 #include "VRPlayer.generated.h"
 
 UENUM()
 enum EHandSide{ right, left};
 
+
 class UCameraComponent;
 UCLASS()
-class PERIPHERAL_API AVRPlayer : public ACharacter
+class PERIPHERAL_API AVRPlayer : public APawn
 {
 	GENERATED_BODY()
 
@@ -33,10 +34,21 @@ public:
 
 	class UPeripheralGameInstance* mPeripheralGI;
 
+	//Root 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	USceneComponent* mRoot;
+
+	//Do general debugging
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bDebug = true;
+	void Debug();
 	//Camera
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		UCameraComponent* mCamera;
 	void SetCameraMode(enum EPeripheralMode mode);
+	//Should the FPS Mode Movement fly around ? 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bFlyingCamera = true;
 	//FPS MOVEment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 		float mMoveSpeed = 100.f;					  
@@ -54,6 +66,14 @@ public:
 	//Hands
 	class APeripheralHandActor* mRightHand;
 	APeripheralHandActor* mLeftHand;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TSubclassOf<APeripheralHandActor> mHandActorBP;
+
+	//This enum determines wheter the right or left hand is the one controlled by the brain
+	//EHandSide mBCIHandSide = right;
+	////Based on the enum, a pointer
+	//TMap<TEnumAsByte<EHandSide>, APeripheralHandActor*> mHands;
 
 	TMap<EHandSide, APeripheralHandActor*> mHandsMap;
 	std::vector< APeripheralHandActor*> mHandsVector;
@@ -85,7 +105,11 @@ public:
 	void SetUseBCI(bool bci) {
 		bUseBCI = bci;
 	}
-
+	void SetBCIMode(EPeripheralMode mode);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TEnumAsByte<EHandSide> mBCIOverridenHandSide = right;
+	bool bDisableVRMCInBCIMode = false;
+	class UBCIHandComponent* mBCIHand;
 	//Grabbing stuff
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float mGrabRadius = 200.f;
