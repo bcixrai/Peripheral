@@ -111,9 +111,19 @@ public:
 		SetPeripheralMode(mode);
 	}
 	UFUNCTION(BlueprintCallable)
-	EPeripheralMode GetPeripheralModeFromInstance() {
+		EPeripheralMode GetPeripheralModeFromInstance() {
 		return GetPeripheralMode();
 	}
+
+	UFUNCTION(BlueprintCallable)
+	void SetBCIModeFromInstance(EBCIMode mode) {
+		SetBCIMode(mode);
+	}
+	UFUNCTION(BlueprintCallable)
+	EBCIMode GetBCIModeFromInstance() {
+		return GetBCIMode();
+	}
+	
 private:
 	
 	//Hands

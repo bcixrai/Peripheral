@@ -3,7 +3,6 @@
 
 #include "VRPlayer.h"
 //General
-#include "Peripheral.h"
 #include "PeripheralGameInstance.h"
 #include "MotionControllerComponent.h"
 #include "PeripheralHandActor.h"
@@ -91,26 +90,6 @@ AVRPlayer::AVRPlayer()
 void AVRPlayer::BeginPlay()
 {
 	Super::BeginPlay();
-	//Find motion controllers if they are not spawned form here
-	if (!mRightMC && !mLeftMC) {
-		auto mcs = GetComponentsByClass(UMotionControllerComponent::StaticClass());
-		for (auto mc : mcs) {
-			if (mc->GetName() == "RightMC") {
-				mRightMC = Cast<UMotionControllerComponent>(mc);
-			}
-			if (mc->GetName() == "LeftMC") {
-				mLeftMC = Cast<UMotionControllerComponent>(mc);
-			}
-
-		}
-	}
-	if (!mCamera) {
-		auto cams = GetComponentByClass(UCameraComponent::StaticClass());
-		if (cams) {
-			mCamera = Cast<UCameraComponent>(cams);
-		}
-	}
-	
 
 	mPeripheralGI = Cast<UPeripheralGameInstance>(GetGameInstance());
 	if (!mPeripheralGI) {
@@ -120,28 +99,18 @@ void AVRPlayer::BeginPlay()
 	auto mode = GetPeripheralMode();
 	if (mode == NORMAL) {
 		//We're using neither VR nor BCI, then we want to play as a regular fps game ? 
-		bVR = false;
+	
 		mRightMC->SetHiddenInGame(true);
 		mLeftMC->SetHiddenInGame(true);
 		bUseControllerRotationYaw = true;
 	}
-	if (mode == VR_BCI) {
-		//Here we want normal VR with BCI hand override enabled
-
-		//We want active BCI hand
-	}
+	
 	if (mode == VR) {
 		//Normal VR without any overrides, 
-		bVR = true;
+		
 	}
-	if (mode == BCI) {
-		//Here we want normal FPS controls, no VR, with a hand that can be overriden
-		//mOverridenHand = mRightMC;
-
-		//We want active BCI
-	}
-
-	SetBCIMode(mode);
+	auto bciMode = GetBCIMode();
+	SetBCIMode(bciMode);
 	SetCameraMode(mode);
 
 	//What do we want to do different here
@@ -166,11 +135,6 @@ void AVRPlayer::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	//If we're using VR, we want our hands to be aligned with the motion controllers
-	if (bVR) {
-		//This should probably be changed to a better function
-		//AlignHandAndMotionController(left);
-		//AlignHandAndMotionController(right);
-	}
 
 	if (bDebug) {
 		Debug();
@@ -242,19 +206,24 @@ void AVRPlayer::Debug() {
 
 void AVRPlayer::SetCameraMode(EPeripheralMode mode)
 {
-	if (mode == VR || mode == VR_BCI) {
-		mCamera->bLockToHmd = true;
-		//mCamera->bUsePawnControlRotation = false;
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To VR")));
-	}
-	else {
-		//mCamera->SetRelativeLocation(FVector(0, 1.75f, 0)); // Position the camera
+	switch (mode) {
+	case NORMAL:
+		//Camera should not be locked to the HeadMountedDispaly
 		mCamera->bLockToHmd = false;
-		//
+		//The camera should use pawn rotation
 		mCamera->bUsePawnControlRotation = true;
 		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To NORMAL")));
+		break;
+	case VR:
+		//Lock camera to HMD
+		mCamera->bLockToHmd = true;
+		//Dont rotate pawn based on camera / vice versa
+		mCamera->bUsePawnControlRotation = false;
+		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To VR")));
+		break;
 	}
 }
+
 #pragma region FPS Controls
 void AVRPlayer::MoveForward(float value)
 {
@@ -286,97 +255,90 @@ void AVRPlayer::LookUp(float value)
 #pragma endregion
 
 #pragma region BCI
-void AVRPlayer::SetBCIMode(EPeripheralMode mode)
+void AVRPlayer::ConfigureBCIMode(EBCIMode mode)
 {
-	if (!(mode == BCI || mode == VR_BCI)) {
-		if (mBCIHand) {
-			mBCIHand->SetHiddenInGame(true);
-			mBCIHand->SetComponentTickEnabled(false);
+	switch (mode) {
+	case NO_BCI:
+		//What should happend here ? 
+		
+		break;
+	case BCI:
+		//What should happend here ? 
+
+		break;
+	}
+}
+//Swaps between non-bci and bci mode
+void AVRPlayer::SwapGlobalBCIMode() {
+	auto mode = GetBCIMode();
+	if (mode == NO_BCI) {
+		SetBCIMode(BCI);
+	}
+	if (mode == BCI) {
+		SetBCIMode(NO_BCI);
+	}
+	ConfigureBCIMode(GetBCIMode());
+}
+void AVRPlayer::RecieveOSCInputAddressAndFloat(FString address, float value) {
+	//direction for commands
+	TMap<FString, FVector> directions = {
+	{"right"	, FVector( 0, 1, 0)},
+	{"left"		, FVector( 0,-1, 0)},
+	{"forward"	, FVector( 1, 0, 0)},
+	{"backward"	, FVector(-1, 0, 0)},
+	{"up"		, FVector( 0, 0, 1)},
+	{"down"		, FVector( 0, 0,-1)},
+	{"neutral"	, FVector( 0, 0, 0)},
+	};
+	
+	//Parse string
+	//The address is formated as /info/command
+	std::string string = std::string(TCHAR_TO_UTF8(*address));
+	std::vector<int> seperators;
+	for (int i = 0; i < string.size(); i++) {
+		if (string[i] == '/') {
+			seperators.push_back(i);
 		}
+	}
+	if (seperators.size() != 2) {
+		//Something is worng 
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : Parsing OSC String Did not Find 2 Seperators")));
 		return;
 	}
-	//Okay we want an active BCI controlled hand
-	//Are we overrding a specific hand or doesnt it matter
-	if (bDisableVRMCInBCIMode) {
-		auto hand = mHandsMap[mBCIOverridenHandSide];
-		if (!hand) {
-			return;
-		}
-		hand->SetActorHiddenInGame(true);
-		hand->SetActorEnableCollision(false);
-		hand->SetActorTickEnabled(false);
+	//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Player : Seperators %d, %d"), seperators[0], seperators[1]));
+	//Type is defined between the seperators
+	FString type = address.RightChop(seperators[0]+1);
+	type = type.LeftChop(type.Len() - seperators[1] +1);
+	if (type != "com") {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : OSC Address is not Mental Command")));
+		return;
 	}
-	//Wheter we disable the hand or not, its now done
+	//Command
+	FString command  = address.RightChop(seperators[1]+1);
+	if (!directions.Find(command)) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : %s is not recognized"), *command.ToUpper()));
+		return;
+	}
+	FVector dir = directions[command];
+	GEngine->AddOnScreenDebugMessage(350, 5, FColor::Green, FString::Printf(TEXT("Player : Command : %s with value %f: "), *command.ToUpper(), value));
 
-	//Now what do we do with the bci hand ? Enable it aleast
-	mBCIHand;
-
+	//GEngine->AddOnScreenDebugMessage(350, 5, FColor::Green, FString::Printf(TEXT("Player : Command : %s with (%d, %d, %d)"), *command.ToUpper(), dir.X, dir.Y, dir.Z));
+	MentalCommandMovementInput(dir, value);	
 }
-
+void AVRPlayer::MentalCommandMovementInput(FVector direction, float strength)
+{
+	//Dont apply if we're not in BCI mode
+	auto mode = GetBCIMode();
+	if (mode != BCI) {
+		return;
+	}
+	mBCIHandMovementDirection = direction;
+	mMentalCommandStrength = strength;
+}
 #pragma endregion
 
 
 #pragma region VR
-void AVRPlayer::AlignHandAndMotionController(APeripheralHandActor* hand, UMotionControllerComponent* mc)
-{
-	if (!hand) {
-		//Somethings very wrong
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("AlignHand no hand")));
-		return;
-	}
-	if (!mc) {
-
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("AlignHand no mc")));
-		return;
-	}
-	//TODO : THIS OFFSET SHOULD BE SET AS A PART OF THE "TRICK THE BRAIN" SEGMENT; USE GAME INSTANCE HERE MAYBE
-	FVector offset(0, 0, 0);
-
-	FVector loc = mc->GetComponentLocation();
-	FRotator rot = mc->GetComponentRotation();
-
-	loc += offset;
-
-	hand->SetActorLocation(loc);
-	hand->SetActorRotation(rot);
-}
-void AVRPlayer::AlignHandAndMotionController(EHandSide side)
-{
-	APeripheralHandActor* hand = nullptr;
-	UMotionControllerComponent* mc = nullptr;
-	if (side == right) {
-		hand = mRightHand;
-		mc = mRightMC;
-	}
-	if (side == right) {
-		hand = mLeftHand;
-		mc = mLeftMC;
-	}
-	if (!hand) {
-		//Somethings very wrong
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("AlignHand no hand")));
-		return;
-	}
-	if (!mc) {
-
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("AlignHand no mc")));
-		return;
-	}
-	AlignHandAndMotionController(hand, mc);
-}
-bool AVRPlayer::StartVR()
-{
-	bVR = true;
-	return true;
-}
-
-bool AVRPlayer::StopVR()
-{
-	bVR = false;
-	return true;
-
-}
-
 #pragma endregion
 
 #pragma region Grab
@@ -619,13 +581,17 @@ void AVRPlayer::Left_Interact_Released()
 
 void AVRPlayer::Interact_Pressed(UMotionControllerComponent* mc)
 {
+	if (!mc) {
+		return;
+	}
 	//Find interactaables around the mc
 	auto inter = GetNearestInteractable(mc->GetComponentLocation());
-	
-	if (inter) {
-		//We can interact with it
-		inter->Interact(this);
+	if (!inter) {
+		return;
 	}
+	//We can interact with it
+	inter->Interact(this);
+
 }
 
 void AVRPlayer::Interact_Released(UMotionControllerComponent* mc)
@@ -634,7 +600,16 @@ void AVRPlayer::Interact_Released(UMotionControllerComponent* mc)
 
 void AVRPlayer::Interact_Pressed()
 {
-	
+	auto mode = GetPeripheralMode();
+	switch (mode) {
+	case NORMAL:
+		//In normal mode we want to 
+
+		break;
+	case VR:
+		
+	break;
+	}
 	auto start = mCamera->GetComponentLocation();
 	auto end = mCamera->GetComponentLocation() + (mCamera->GetForwardVector() * mInteractionRange);
 

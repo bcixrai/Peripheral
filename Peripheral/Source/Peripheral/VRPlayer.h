@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Peripheral.h"
 #include "VRPlayer.generated.h"
 
 UENUM()
@@ -42,6 +43,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bDebug = true;
 	void Debug();
+
+#pragma region Camera
 	//Camera
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		UCameraComponent* mCamera;
@@ -49,6 +52,9 @@ public:
 	//Should the FPS Mode Movement fly around ? 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bFlyingCamera = true;
+#pragma endregion
+
+#pragma region Normal Movement
 	//FPS MOVEment
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 		float mMoveSpeed = 100.f;					  
@@ -62,6 +68,7 @@ public:
 
 	void Turn(float value);
 	void LookUp(float value);
+#pragma endregion
 
 	//Hands
 	class APeripheralHandActor* mRightHand;
@@ -78,38 +85,35 @@ public:
 	TMap<EHandSide, APeripheralHandActor*> mHandsMap;
 	std::vector< APeripheralHandActor*> mHandsVector;
 	TArray<APeripheralHandActor*> mHandsArray;
+
+#pragma region VR Motion Controllers
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		USceneComponent* mVROrigin;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	class UMotionControllerComponent* mRightMC;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	class UMotionControllerComponent* mLeftMC;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		class UChildActorComponent* mRightHandChildActor;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		class UChildActorComponent* mLeftHandChildActor;
-	void AlignHandAndMotionController(APeripheralHandActor* hand, UMotionControllerComponent* mc);
-	void AlignHandAndMotionController(EHandSide side);
-	//Simple VR mode mechanic
-	bool IsVR() {
-		return bVR;
-	};
-	bool StartVR();
-	bool StopVR();
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	USceneComponent* mVROrigin;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		USceneComponent* mCameraOrigin;
-	//Simple BCI mode mechanic
-	bool UsingBCI() {
-		return bUseBCI;
-	}
-	void SetUseBCI(bool bci) {
-		bUseBCI = bci;
-	}
-	void SetBCIMode(EPeripheralMode mode);
+#pragma endregion
+
+#pragma region BCI
+	//Configure play for specific mode
+	void ConfigureBCIMode(EBCIMode mode);
+	//Swap global bci mode
+	void SwapGlobalBCIMode();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TEnumAsByte<EHandSide> mBCIOverridenHandSide = right;
 	bool bDisableVRMCInBCIMode = false;
 	class UBCIHandComponent* mBCIHand;
+	UFUNCTION(BlueprintCallable)
+		void RecieveOSCInputAddressAndFloat(FString address, float value);
+	void MentalCommandMovementInput(FVector direction, float strength);
+	FVector mBCIHandMovementDirection = FVector(0, 0, 0);
+	float   mMentalCommandStrength = 0;
+#pragma endregion
+
+#pragma region Grabbing Items
 	//Grabbing stuff
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float mGrabRadius = 200.f;
@@ -126,6 +130,9 @@ public:
 	//Is the mc parameter currently holding an item
 	bool GrabbingItem(UMotionControllerComponent* mc);
 
+#pragma endregion
+
+#pragma region VR Teleportation
 	//Teleporting
 	void Teleport_Pressed();
 	void Teleport_Released();
@@ -142,7 +149,9 @@ public:
 		class UMaterial* mCanTeleportMat;
 	UPROPERTY(EditAnywhere)
 		class UMaterial* mCantTeleportMat;
+#pragma endregion
 
+#pragma region Interactions (VR and NORMAL)
 	//For VR where both hand can be used for interaction
 	void Right_Interact_Pressed();
 	void Right_Interact_Released();
@@ -154,21 +163,22 @@ public:
 	//For Non-VR gameplay, these are called from the E button
 	void Interact_Pressed();
 	void Interact_Released();
+	void InteractRaycastFromCamera();
+	void InteractClosest();
 	class IInteractable* GetNearestInteractable(FVector location);
 	std::vector<IInteractable*> GetNearbyInteractables(FVector location);
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float mInteractionRange = 25.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		bool bEnableInteractionHold = true;
+
+#pragma endregion
+
 private:
-	bool bUseBCI = false;
-
-
-	bool bVR = false;
-
 	bool bTeleporting = false;
 	float mTeleportMaxRange = 1000.f;
-
 
 	FVector mTeleportLocation;
 };
