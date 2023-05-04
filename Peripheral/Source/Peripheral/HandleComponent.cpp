@@ -34,12 +34,19 @@ void UHandleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		auto theta = FMath::Acos(FVector::DotProduct(a, b) / (a.Length() * b.Length()));
 		auto rot = mHandle->GetRelativeRotation();
 		auto delta = rot.Roll - (FMath::RadiansToDegrees(theta) * sign);
+		mCollectedRotation += delta * mDeltaMultiplierRate;
 		rot.Roll = (FMath::RadiansToDegrees(theta) * sign);
 		mHandle->SetRelativeRotation(rot);
 
 		GEngine->AddOnScreenDebugMessage(393, 5, FColor::Cyan, FString::Printf(TEXT("Delta : %f"), delta));
 		GEngine->AddOnScreenDebugMessage(392, 5, FColor::Cyan, FString::Printf(TEXT("Dot : %f"), dot));
 		GEngine->AddOnScreenDebugMessage(398, 5, FColor::Cyan, FString::Printf(TEXT("Theta : %f"), FMath::RadiansToDegrees(theta)));
+	}
+
+	if (mCollectedRotation > 0) {
+		//Play audio
+
+		mCollectedRotation -= mDecayRate * DeltaTime;
 	}
 	
 }

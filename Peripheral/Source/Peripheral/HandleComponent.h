@@ -31,8 +31,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TEnumAsByte<EHandleRotationAxis> mRotationAxis = X;
 	USceneComponent* mHandle;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float mDeltaMultiplierRate = 5.f;
 	float mLastRotValue = 0;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float mCollectedRotation = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float mDecayRate = 1;
 	void Turn();
 	float mTurnSpeed = 150.f;
 	virtual bool Interact(AActor* interactor)override {
