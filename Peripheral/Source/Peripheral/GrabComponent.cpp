@@ -54,23 +54,16 @@ void UGrabComponent::SetPrimitveComponentPhysics(bool sim)
 bool UGrabComponent::TryGrab(USceneComponent* mc)
 {
 	SetPrimitveComponentPhysics(false);;
-	bool attach = GetAttachParent()->AttachToComponent(mc, FAttachmentTransformRules::KeepWorldTransform);
+	GetOwner()->AttachToComponent(mc, FAttachmentTransformRules::KeepWorldTransform);
+	bIsHeld = true;
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Grabbed")));
 
-	if (attach) {
-		bIsHeld = true;
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Grabbed")));
-
-		mOwner = mc;
-		OnGrabbed();
+	mOwner = mc;
+	OnGrabbed();
 
 
-		return true;
-	}
-	else {
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Not Grabbed")));
+	return true;
 
-		return false;
-	}
 }
 
 bool UGrabComponent::TryRelease()
@@ -79,13 +72,14 @@ bool UGrabComponent::TryRelease()
 		SetPrimitveComponentPhysics(true);
 	}
 
-	auto parent = GetAttachParent();
+	auto parent = GetOwner();
 	if (!parent) {
 
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Not released")));
 		return false;
 	}
-	parent->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+
+	GetOwner()->DetachRootComponentFromParent();
 	bIsHeld = false;
 
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Released")));
@@ -120,6 +114,7 @@ bool UGrabComponent::ForceReleased(USceneComponent* owner, bool handleDeattachme
 	if (!handleDeattachment) {
 		return true;
 	}
+	GetOwner()->DetachRootComponentFromParent();
 	if (bSimulateOnDrop) {
 		SetPrimitveComponentPhysics(true);
 	}

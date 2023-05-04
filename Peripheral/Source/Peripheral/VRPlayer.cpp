@@ -33,12 +33,7 @@ AVRPlayer::AVRPlayer()
 	
 	mRoot = CreateAbstractDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(mRoot);
-	//Camera
-	//mVROrigin = CreateDefaultSubobject<USceneComponent>(TEXT("VR_Origin_1"));
-	//mCameraOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("Camera Origin"));
-	//mVROrigin->SetupAttachment(GetCapsuleComponent());
-	//mCameraOrigin->SetupAttachment(GetCapsuleComponent());
-	////
+
 	mCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	mCamera->SetupAttachment(RootComponent);
 	////	
