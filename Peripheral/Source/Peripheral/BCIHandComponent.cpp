@@ -32,3 +32,8 @@ void UBCIHandComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	// ...
 }
 
+void UBCIHandComponent::Configure(bool state)
+{
+
+}
+

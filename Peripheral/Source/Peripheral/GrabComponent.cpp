@@ -97,8 +97,8 @@ void UGrabComponent::OnReleased()
 {
 }
 
-bool UGrabComponent::Interact(AActor* interactor)
-{
-	return false;
-}
+//bool UGrabComponent::Interact(AActor* interactor)
+//{
+//	return false;
+//}
 

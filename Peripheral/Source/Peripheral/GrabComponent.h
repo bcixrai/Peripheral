@@ -8,7 +8,7 @@
 #include "GrabComponent.generated.h"
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class PERIPHERAL_API UGrabComponent : public USceneComponent, public IInteractable
+class PERIPHERAL_API UGrabComponent : public USceneComponent
 {
 	GENERATED_BODY()
 
@@ -42,10 +42,10 @@ public:
 	virtual void OnGrabbed();
 	virtual void OnReleased();
 
-	virtual bool Interact(AActor* interactor) override;
-	virtual FVector GetInteractableLocation() override {
-		return GetComponentLocation();
-	};
+	//virtual bool Interact(AActor* interactor) override;
+	//virtual FVector GetInteractableLocation() override {
+	//	return GetComponentLocation();
+	//};
 
 	UMotionControllerComponent* mMC;
 };

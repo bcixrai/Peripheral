@@ -52,38 +52,13 @@ AVRPlayer::AVRPlayer()
 	mLeftMC->MotionSource = "Left";
 	mLeftMC->SetupAttachment(mVROrigin);
 
-	//TODO : THIS MAY NOT BE USED; THIS IS TEMPORARY
-	//mRightHandChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("Right Hand Child Actor"));
-	//mLeftHandChildActor = CreateDefaultSubobject<UChildActorComponent>(TEXT("Left Hand Child Actor"));
-	////Set what class they are
-	////TODO : If this is to be used, set this as the instantiation of the mRightHand and mLeftHand
-	//mRightHandChildActor->SetChildActorClass(APeripheralHandActor::StaticClass());
-	//mLeftHandChildActor->SetChildActorClass(APeripheralHandActor::StaticClass());
-
-	////Spawn hands
-	//mRightHand = CreateDefaultSubobject<APeripheralHandActor>(TEXT("Right Hand"));
-	//mLeftHand  = CreateDefaultSubobject<APeripheralHandActor>(TEXT("Left Hand"));
-	//
-	//
-	//
-	//mRightHandChildActor->CreateChildActor();
-	//
-	//mRightHandChildActor->CreateChildActor();
-
-	//mHandsMap[right] = mRightHand;
-	//mHandsMap[left] = mLeftHand;
-
-	//mHandsArray.Add(mRightHand);
-	//mHandsArray.Add(mLeftHand);
-	//
-	//mHandsVector.push_back(mRightHand);
-	//mHandsVector.push_back(mLeftHand);
+	//Create BCI hand
+	mBCIHand = CreateDefaultSubobject<UBCIHandComponent>(TEXT("BCI Hand"));
+	mBCIHand->SetupAttachment(mRoot);
 
 	//Teleportation
 	mTeleportGraphic = CreateDefaultSubobject<USceneComponent>(TEXT("TeleportGraphic"));
 	mTeleportAimStart = CreateDefaultSubobject<USceneComponent>(TEXT("TeleportAimStart"));
-	//auto hand = CreateDefaultSubobject<APeripheralHandActor>(mHandActorBP);
-	//mHands.Add({ right, hand });
 }
 
 // Called when the game starts or when spawned
@@ -139,7 +114,17 @@ void AVRPlayer::Tick(float DeltaTime)
 	if (bDebug) {
 		Debug();
 	}
-	
+	switch (mBCIHandMovementMode) {
+	case On_Input:
+
+		break;
+	case On_Update:
+		//Moves hand with cached direction and strength
+		MoveBCIHand(mBCIHandMovementDirection, mMentalCommandStrength);
+		//
+		HandleCachedBCIHandDirectionAndStrength();
+		break;
+	}
 
 	if (bTeleporting) {
 		auto hit = GetTeleportAimHit();
@@ -195,7 +180,9 @@ void AVRPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	InputComponent->BindAction("Interact", IE_Pressed, this, &AVRPlayer::Interact_Pressed);
 	InputComponent->BindAction("Interact", IE_Released, this, &AVRPlayer::Interact_Released);
 
-
+	//BCI modes
+	InputComponent->BindAction("SwapBCIMode", IE_Pressed, this, &AVRPlayer::SwapGlobalBCIMode);
+	InputComponent->BindAction("SwapBCIInputEnabled", IE_Pressed, this, &AVRPlayer::SwapBCIInputEnabled);
 }
 
 void AVRPlayer::Debug() {
@@ -259,12 +246,24 @@ void AVRPlayer::ConfigureBCIMode(EBCIMode mode)
 {
 	switch (mode) {
 	case NO_BCI:
-		//What should happend here ? 
-		
+		//What should happend here ?
+		//Disable BCI hand
+		mBCIHand->Configure(false);
 		break;
 	case BCI:
-		//What should happend here ? 
+		//What should happend here ?
+		//Enable BCI hand
+		mBCIHand->Configure(true);
+		//shoudl the BCI hand be parented to the camera ? 
+		bool parentCamera = GetPeripheralMode() == NORMAL;//if mode equals normal, the parent it to camera, in vr it should be parented to body
+		if (parentCamera) {
+			mBCIHand->SetupAttachment(mCamera);//Attach to camera
+			mBCIHand->SetRelativeLocation(FVector(100, 0, 0));
+		}
+		else {
+			mBCIHand->SetupAttachment(mRoot);
 
+		}
 		break;
 	}
 }
@@ -272,13 +271,36 @@ void AVRPlayer::ConfigureBCIMode(EBCIMode mode)
 void AVRPlayer::SwapGlobalBCIMode() {
 	auto mode = GetBCIMode();
 	if (mode == NO_BCI) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("BCI-mode set to BCI")));
 		SetBCIMode(BCI);
 	}
 	if (mode == BCI) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("BCI-mode set to NO_BCI")));
 		SetBCIMode(NO_BCI);
 	}
 	ConfigureBCIMode(GetBCIMode());
 }
+//Enables or disables Input to BCI HAnd
+void AVRPlayer::SwapBCIInputEnabled()
+{
+	bBCIInputEnabled = !bBCIInputEnabled;
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("BCI Input set to %d"), bBCIInputEnabled));
+}
+
+void AVRPlayer::MoveBCIHand(FVector dir, float strength)
+{
+	float deltaSeconds = GetWorld()->GetDeltaSeconds();
+
+	auto forward = mBCIHand->GetForwardVector();
+	auto right = mBCIHand->GetRightVector();
+	auto pos = mBCIHand->GetComponentLocation();
+
+	auto speed = mBCIHandMoveSpeed * deltaSeconds * (bUseInputStrength ? strength : 1);
+	auto delta = dir * speed;
+
+	mBCIHand->AddRelativeLocation(delta);
+}
+
 void AVRPlayer::RecieveOSCInputAddressAndFloat(FString address, float value) {
 	//direction for commands
 	TMap<FString, FVector> directions = {
@@ -309,10 +331,19 @@ void AVRPlayer::RecieveOSCInputAddressAndFloat(FString address, float value) {
 	//Type is defined between the seperators
 	FString type = address.RightChop(seperators[0]+1);
 	type = type.LeftChop(type.Len() - seperators[1] +1);
-	if (type != "com") {
-		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : OSC Address is not Mental Command")));
-		return;
+	auto allowedTypes = std::vector<FString>{ "neuropype", "com" };//nueropype prediction, and mental command from emotiv
+	for (int i = 0; i < allowedTypes.size(); i++) {
+		if (type == allowedTypes[i]) {// Is
+			GEngine->AddOnScreenDebugMessage(800, 5, FColor::Green, FString::Printf(TEXT("Player : Correct address found : %s"), *type.ToUpper()));
+			break; //Exit loop, found correct one
+		}
+		//Have gone trough all allowed types but none were correct, then something is wrong
+		if (i == allowedTypes.size() - 1) {
+			GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Found no correct OSC address : %s"), *type));
+			return;
+		}
 	}
+
 	//Command
 	FString command  = address.RightChop(seperators[1]+1);
 	if (!directions.Find(command)) {
@@ -332,8 +363,33 @@ void AVRPlayer::MentalCommandMovementInput(FVector direction, float strength)
 	if (mode != BCI) {
 		return;
 	}
-	mBCIHandMovementDirection = direction;
-	mMentalCommandStrength = strength;
+	//Check for disabled input
+	if (!bBCIInputEnabled) {
+		return;
+	}
+	switch (mBCIHandMovementMode) {
+	case On_Input:
+		MoveBCIHand(direction, strength);
+		break;
+	case On_Update:
+		mBCIHandMovementDirection = direction;
+		mMentalCommandStrength = strength;
+		break;
+	}
+	
+}
+void AVRPlayer::HandleCachedBCIHandDirectionAndStrength()
+{
+	float deltaSeconds = GetWorld()->GetDeltaSeconds();
+	//How much to decrease / increase per second
+	float decreaseRate = 0.05;
+
+	//Decrease strength each seconds, so if the input stops or is neutral it decreases movement
+	mMentalCommandStrength -= decreaseRate * deltaSeconds;
+	//Dont go below zero
+	if (mMentalCommandStrength < 0) {
+		mMentalCommandStrength = 0;
+	}
 }
 #pragma endregion
 
@@ -608,7 +664,7 @@ void AVRPlayer::Interact_Pressed()
 		break;
 	case VR:
 		
-	break;
+		break;
 	}
 	auto start = mCamera->GetComponentLocation();
 	auto end = mCamera->GetComponentLocation() + (mCamera->GetForwardVector() * mInteractionRange);

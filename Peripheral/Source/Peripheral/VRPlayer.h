@@ -9,8 +9,8 @@
 
 UENUM()
 enum EHandSide{ right, left};
-
-
+UENUM()
+enum EBCIHandMovementMode { On_Input, On_Update};
 class UCameraComponent;
 UCLASS()
 class PERIPHERAL_API AVRPlayer : public APawn
@@ -101,16 +101,43 @@ public:
 	void ConfigureBCIMode(EBCIMode mode);
 	//Swap global bci mode
 	void SwapGlobalBCIMode();
+	//Disable or enable input to the BCI hand
+	void SwapBCIInputEnabled();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TEnumAsByte<EHandSide> mBCIOverridenHandSide = right;
 	bool bDisableVRMCInBCIMode = false;
+
+	//BCI HAND
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BCI")
 	class UBCIHandComponent* mBCIHand;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BCI")
+		float mBCIHandMoveSpeed = 50.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BCI")
+		bool bUseInputStrength = true;
+	//Moving BCI Hand
+	void MoveBCIHand(FVector dir, float strength);
+	//Offset the BCI hand 
+	FVector mBCIHandOffset = FVector{ 0,0,0 };
+	bool bBCIInputEnabled = false;
+	
+	UPROPERTY(EditAnywhere, Category = "BCI")
+		TEnumAsByte<EBCIHandMovementMode> mBCIHandMovementMode = On_Input;
+
+	//NETWORKING AND BCI INPUT
+	//Parsing OSC messages
 	UFUNCTION(BlueprintCallable)
 		void RecieveOSCInputAddressAndFloat(FString address, float value);
+	//Handle MentalCommandMovementInput
 	void MentalCommandMovementInput(FVector direction, float strength);
-	FVector mBCIHandMovementDirection = FVector(0, 0, 0);
+	
+	//Vector that moves the hand
+	FVector mBCIHandMovementDirection = FVector{ 0, 0, 0 };
+	//How much does mentalCommands affect movement
 	float   mMentalCommandStrength = 0;
+	//Decrease direction and strength over time ? 
+	void HandleCachedBCIHandDirectionAndStrength();
+
 #pragma endregion
 
 #pragma region Grabbing Items
