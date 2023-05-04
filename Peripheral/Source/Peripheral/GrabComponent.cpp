@@ -35,18 +35,23 @@ void UGrabComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 
 void UGrabComponent::SetPrimitveComponentPhysics(bool sim)
 {
-	auto parent = GetAttachParent();
+	auto parent = GetOwner();
 	if (!parent) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("SetPrimitivePhysics : No Parent")));
 		return;
 	}
 	auto prim = Cast<UPrimitiveComponent>(parent);
+	
+	prim = Cast<UPrimitiveComponent>(parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
 	if (!prim) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("SetPrimitivePhysics : No Primitive Component")));
 		return;
 	}
 	prim->SetSimulatePhysics(sim);
+	parent->SetActorEnableCollision(sim);
 }
 
-bool UGrabComponent::TryGrab(UMotionControllerComponent* mc)
+bool UGrabComponent::TryGrab(USceneComponent* mc)
 {
 	SetPrimitveComponentPhysics(false);;
 	bool attach = GetAttachParent()->AttachToComponent(mc, FAttachmentTransformRules::KeepWorldTransform);
@@ -55,7 +60,7 @@ bool UGrabComponent::TryGrab(UMotionControllerComponent* mc)
 		bIsHeld = true;
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Grabbed")));
 
-		mMC = mc;
+		mOwner = mc;
 		OnGrabbed();
 
 
@@ -84,9 +89,41 @@ bool UGrabComponent::TryRelease()
 	bIsHeld = false;
 
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Released")));
-	mMC = nullptr;
+	mOwner = nullptr;
 	OnReleased();
 	return true;
+}
+
+bool UGrabComponent::ForceGrab(USceneComponent* owner, bool handleAttachment)
+{
+	if (mOwner && mOwner != owner) {
+		return false; //Is already grabbed
+	}
+	mOwner = owner;
+	if (!handleAttachment) {
+		return true;
+	}
+	SetPrimitveComponentPhysics(false);
+	//Handle attachment
+	GetOwner()->AttachToComponent(mOwner, FAttachmentTransformRules::KeepWorldTransform);
+	
+
+	return true;
+}
+
+bool UGrabComponent::ForceReleased(USceneComponent* owner, bool handleDeattachment)
+{
+	if (owner != mOwner) {
+		return false;
+	}
+	mOwner = nullptr;
+	if (!handleDeattachment) {
+		return true;
+	}
+	if (bSimulateOnDrop) {
+		SetPrimitveComponentPhysics(true);
+	}
+	return false;
 }
 
 void UGrabComponent::OnGrabbed()

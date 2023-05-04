@@ -4,46 +4,47 @@
 #include "HandleComponent.h"
 
 #include "MotionControllerComponent.h"
+
+void UHandleComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	auto comps = GetOwner()->GetComponents();
+	for (auto comp : comps) {
+		if (comp->GetName() == "Handle") {
+			mHandle = Cast<USceneComponent>(comp);
+		}
+	}
+
+}
 void UHandleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	if (bIsHeld && mMC) {
+	mLastRotValue = GetRelativeRotation().Roll;
+	if (bIsHeld && mOwner) {
 		//The handle is held by a MotionController
+		auto base = mHandle->GetComponentLocation();
+		auto pos = mOwner->GetComponentLocation();
 
-		
-		//What axis are we rotating on ?
-		FVector mcLoc = mMC->GetComponentLocation();
-		float rotValue = 0;
-		if (mRotationAxis == X) {
-			//
-			mcLoc.X = GetComponentLocation().X;
-			rotValue = GetComponentRotation().Roll;
-		}
-		if (mRotationAxis == Y) {
-			//
-			mcLoc.Y = GetComponentLocation().Y;
-			rotValue = GetComponentRotation().Pitch;
-		}
-		if (mRotationAxis == Z) {
-			//
-			mcLoc.Z = GetComponentLocation().Z;
-			rotValue = GetComponentRotation().Yaw;
-		}
+		FVector a = FVector(0,1, 0);
+		FVector b = pos - base;
+		b.X = 0;
+		b.Normalize();
+		auto dot = FVector::DotProduct(FVector(0,0,1), b);
+		auto sign = dot >= 0 ? 1 : -1;
+		auto theta = FMath::Acos(FVector::DotProduct(a, b) / (a.Length() * b.Length()));
+		auto rot = mHandle->GetRelativeRotation();
+		auto delta = rot.Roll - (FMath::RadiansToDegrees(theta) * sign);
+		rot.Roll = (FMath::RadiansToDegrees(theta) * sign);
+		mHandle->SetRelativeRotation(rot);
 
-		//Delta rotation value
-		float deltaRot = rotValue - mLastRotValue;
-
-		//The mc is now at the same X axis as the handle origin
-		mcLoc;
-		//We need some 
-
-		//The X 
-		mLastRotValue = rotValue;
-
-		//Capture new angle between handle and mc
+		GEngine->AddOnScreenDebugMessage(393, 5, FColor::Cyan, FString::Printf(TEXT("Delta : %f"), delta));
+		GEngine->AddOnScreenDebugMessage(392, 5, FColor::Cyan, FString::Printf(TEXT("Dot : %f"), dot));
+		GEngine->AddOnScreenDebugMessage(398, 5, FColor::Cyan, FString::Printf(TEXT("Theta : %f"), FMath::RadiansToDegrees(theta)));
 	}
+	
 }
 
-bool UHandleComponent::TryGrab(UMotionControllerComponent* mc)
+bool UHandleComponent::TryGrab(USceneComponent* mc)
 {
 	//What happens when the handle is grabbed ? 
 	if (bIsHeld) {
@@ -52,13 +53,13 @@ bool UHandleComponent::TryGrab(UMotionControllerComponent* mc)
 	}
 
 	//IF its not already held, then we're now held
-	mMC = mc;
+	mOwner = mc;
 	bIsHeld = true;
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Handle : Grabbed")));
 
 	//Capture angle between the mc and the handle
 	//What axis are we rotating on ?
-	FVector mcLoc = mMC->GetComponentLocation();
+	FVector mcLoc = mOwner->GetComponentLocation();
 	float rotValue = 0;
 	if (mRotationAxis == X) {
 		//
@@ -94,13 +95,40 @@ bool UHandleComponent::TryRelease()
 	//What happens when we try to release it ? 
 	//We always just release it
 	bIsHeld = false;
-	mMC = nullptr;
+	mOwner = nullptr;
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Handle : Released")));
 	
 
 
 	return true;
 
+}
+
+bool UHandleComponent::ForceGrab(USceneComponent* owner, bool handleAttachment)
+{
+	if (bIsHeld) {
+		//its already held so return false
+		return false;
+	}
+
+	//IF its not already held, then we're now held
+	mOwner = owner;
+	bIsHeld = true;
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Handle : Grabbed")));
+	return true;
+}
+
+bool UHandleComponent::ForceReleased(USceneComponent* owner, bool handleDeattachment)
+{
+	//What happens when we try to release it ? 
+	//We always just release it
+	bIsHeld = false;
+	mOwner = nullptr;
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Handle : Released")));
+
+
+
+	return true;
 }
 
 void UHandleComponent::Turn()

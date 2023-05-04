@@ -28,11 +28,13 @@ public:
 		void SetPrimitveComponentPhysics(bool sim);
 
 	UFUNCTION(BlueprintCallable)
-		virtual bool TryGrab(class UMotionControllerComponent* mc);
+		virtual bool TryGrab(class USceneComponent* mc);
 
 	UFUNCTION(BlueprintCallable)
 		virtual bool TryRelease();
 
+	virtual bool ForceGrab(USceneComponent* owner, bool handleAttachment);
+	virtual bool ForceReleased(USceneComponent* owner, bool handleDeattachment);
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		bool bIsHeld = false;
 
@@ -46,6 +48,5 @@ public:
 	//virtual FVector GetInteractableLocation() override {
 	//	return GetComponentLocation();
 	//};
-
-	UMotionControllerComponent* mMC;
+	USceneComponent* mOwner;
 };

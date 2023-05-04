@@ -183,6 +183,15 @@ void AVRPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	//BCI modes
 	InputComponent->BindAction("SwapBCIMode", IE_Pressed, this, &AVRPlayer::SwapGlobalBCIMode);
 	InputComponent->BindAction("SwapBCIInputEnabled", IE_Pressed, this, &AVRPlayer::SwapBCIInputEnabled);
+	//Overriden movement for BCI
+	InputComponent->BindAxis("RightLeft", this, &AVRPlayer::BCIHandRightAndLeft);
+	InputComponent->BindAxis("ForwardBackward", this, &AVRPlayer::BCIHandForwardAndBackward);
+	InputComponent->BindAxis("UpDown", this, &AVRPlayer::BCIHandUpAndDown);
+
+	//Manual grabbing buttons
+	InputComponent->BindAction("Grab", IE_Pressed, this, &AVRPlayer::Grab_Pressed);
+	InputComponent->BindAction("Grab", IE_Released, this, &AVRPlayer::Grab_Released);
+
 }
 
 void AVRPlayer::Debug() {
@@ -257,7 +266,7 @@ void AVRPlayer::ConfigureBCIMode(EBCIMode mode)
 		//shoudl the BCI hand be parented to the camera ? 
 		bool parentCamera = GetPeripheralMode() == NORMAL;//if mode equals normal, the parent it to camera, in vr it should be parented to body
 		if (parentCamera) {
-			mBCIHand->SetupAttachment(mCamera);//Attach to camera
+			mBCIHand->AttachToComponent(mCamera, FAttachmentTransformRules::KeepWorldTransform);
 			mBCIHand->SetRelativeLocation(FVector(100, 0, 0));
 		}
 		else {
@@ -299,6 +308,24 @@ void AVRPlayer::MoveBCIHand(FVector dir, float strength)
 	auto delta = dir * speed;
 
 	mBCIHand->AddRelativeLocation(delta);
+}
+
+void AVRPlayer::BCIHandRightAndLeft(float value)
+{
+	FVector dir = FVector{ 0, value * mManualBCIHandMoveSpeedMultiplier, 0 };
+	MoveBCIHand(dir, 1);
+}
+
+void AVRPlayer::BCIHandForwardAndBackward(float value)
+{
+	FVector dir = FVector{ value * mManualBCIHandMoveSpeedMultiplier, 0, 0 };
+	MoveBCIHand(dir, 1);
+}
+
+void AVRPlayer::BCIHandUpAndDown(float value)
+{
+	FVector dir = FVector{ 0, 0, value * mManualBCIHandMoveSpeedMultiplier };
+	MoveBCIHand(dir, 1);
 }
 
 void AVRPlayer::RecieveOSCInputAddressAndFloat(FString address, float value) {
@@ -402,7 +429,7 @@ void AVRPlayer::GripRightHand_Pressed()
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("Right Hand Grip Pressed"));
 	UE_LOG(LogTemp, Log, TEXT("Right Hand Grip Pressed"));
-	auto grab = GetNearestGrabComponent(mRightMC);
+	auto grab = GetNearestGrabComponent(mRightMC->GetComponentLocation());
 	if (!grab) {
 		return;
 	}
@@ -426,7 +453,7 @@ void AVRPlayer::GripRightHand_Released()
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("Right Hand Grip Released"));
 	UE_LOG(LogTemp, Log, TEXT("Rigth Hand Grip Released"));
-	auto grab = GetNearestGrabComponent(mRightMC);
+	auto grab = GetNearestGrabComponent(mRightMC->GetComponentLocation());
 	if (!grab) {
 		return;
 	}
@@ -440,7 +467,7 @@ void AVRPlayer::GripLeftHand_Pressed()
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("Left Hand Grip Pressed"));
 	UE_LOG(LogTemp, Log, TEXT("Left Hand Grip Pressed"));
-	auto grab = GetNearestGrabComponent(mLeftMC);
+	auto grab = GetNearestGrabComponent(mLeftMC->GetComponentLocation());
 	if (!grab) {
 		return;
 	}
@@ -475,17 +502,54 @@ void AVRPlayer::GripLeftHand_Released()
 	mGrabs[mLeftMC] = nullptr;
 }
 
-UGrabComponent* AVRPlayer::GetNearestGrabComponent(UMotionControllerComponent* mc)
+void AVRPlayer::Grab_Pressed()
+{
+	auto mode = GetBCIMode();
+	if (mode != BCI) {
+		//Do something else
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : Not grabbing beacuse not in BCI mode")));
+		return;
+	}
+	//We know for sure we're in BCI mode
+	//Get closest grab component to BCI hand
+	auto grab = GetNearestGrabComponent(mBCIHand->GetComponentLocation());
+	if (!grab) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : No grabables near BCI Hand")));
+		return;
+	}
+	auto grabbed = grab->ForceGrab(mBCIHand, true);
+	if (!grabbed) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : Grab did not accept!")));
+		return;
+	}
+	mBCIGrabbed = grab;
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Player : BCI Hand Grabbed %s"), *grab->GetOwner()->GetName()));
+
+}
+
+void AVRPlayer::Grab_Released()
+{
+	if (!mBCIGrabbed) {
+		return;
+	}
+	mBCIGrabbed->ForceReleased(mBCIHand, true);
+
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Player : BCI Hand released %s"), *mBCIGrabbed->GetOwner()->GetName()));
+	mBCIGrabbed = nullptr;
+
+}
+
+UGrabComponent* AVRPlayer::GetNearestGrabComponent(FVector location)
 {
 	//Find all close by grabcomponents
-	auto grabs = GetNearbyGrabComponents(mc);
+	auto grabs = GetNearbyGrabComponents(location);
 
 	//Iterate trough distance
 	UGrabComponent* nearest = nullptr;
 	float distance = 1000.f;
 	for (auto& grab : grabs) {
 		//Get distance from
-		float dist = FVector::Distance(grab->GetComponentLocation(), mc->GetComponentLocation());
+		float dist = FVector::Distance(location, grab->GetComponentLocation());
 		if (dist < distance) {
 			nearest = grab;
 			distance = dist;
@@ -494,7 +558,7 @@ UGrabComponent* AVRPlayer::GetNearestGrabComponent(UMotionControllerComponent* m
 	return nearest;
 }
 
-std::vector<UGrabComponent*> AVRPlayer::GetNearbyGrabComponents(UMotionControllerComponent* mc)
+std::vector<UGrabComponent*> AVRPlayer::GetNearbyGrabComponents(FVector location)
 {
 	//Object types
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypesArray;
@@ -505,11 +569,11 @@ std::vector<UGrabComponent*> AVRPlayer::GetNearbyGrabComponents(UMotionControlle
 	ignored.Add(this);
 
 	TArray<FHitResult> hits;
-	bool bHasHit = UKismetSystemLibrary::SphereTraceMultiForObjects(GetWorld(), mc->GetComponentLocation(), mc->GetComponentLocation(), 500.f,
+	bool bHasHit = UKismetSystemLibrary::SphereTraceMultiForObjects(GetWorld(), location, location, 500.f,
 		ObjectTypesArray, true, ignored, EDrawDebugTrace::ForDuration, hits, true);
 
 	FCollisionShape col = FCollisionShape::MakeSphere(mGrabRadius);
-	FVector loc = mc->GetComponentLocation();
+	FVector loc = location;
 	bool isHit = GetWorld()->SweepMultiByChannel(hits, loc, loc, FQuat::Identity, ECC_PhysicsBody, col);
 	std::vector<UGrabComponent*> grabs;
 	for (auto& hit : hits) {
@@ -657,6 +721,18 @@ void AVRPlayer::Interact_Released(UMotionControllerComponent* mc)
 void AVRPlayer::Interact_Pressed()
 {
 	auto mode = GetPeripheralMode();
+	auto bciMode = GetBCIMode();
+	if (bciMode == BCI) {
+		//Find interactaables around the mc
+		auto inter = GetNearestInteractable(mBCIHand->GetComponentLocation());
+		if (!inter) {
+			GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : No interactables close to hand!")));
+			return;
+		}
+		//We can interact with it
+		inter->Interact(this);
+		return;
+	}
 	switch (mode) {
 	case NORMAL:
 		//In normal mode we want to 
@@ -729,6 +805,10 @@ void AVRPlayer::Interact_Pressed()
 void AVRPlayer::Interact_Released()
 {
 
+}
+
+void AVRPlayer::Interact_BCIHand()
+{
 }
 
 IInteractable* AVRPlayer::GetNearestInteractable(FVector location)

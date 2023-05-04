@@ -117,9 +117,16 @@ public:
 		bool bUseInputStrength = true;
 	//Moving BCI Hand
 	void MoveBCIHand(FVector dir, float strength);
+	//Movement overrides functions
+	void BCIHandRightAndLeft(float value);
+	void BCIHandForwardAndBackward(float value);
+	void BCIHandUpAndDown(float value);
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BCI")
+		float mManualBCIHandMoveSpeedMultiplier = 2.f;
 	//Offset the BCI hand 
 	FVector mBCIHandOffset = FVector{ 0,0,0 };
-	bool bBCIInputEnabled = false;
+	//Can input be taken
+	bool bBCIInputEnabled = true;
 	
 	UPROPERTY(EditAnywhere, Category = "BCI")
 		TEnumAsByte<EBCIHandMovementMode> mBCIHandMovementMode = On_Input;
@@ -143,20 +150,26 @@ public:
 #pragma region Grabbing Items
 	//Grabbing stuff
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		float mGrabRadius = 200.f;
+		float mGrabRadius = 50.f;
+	//Normal grabbing
+	void Grab_Pressed();
+	void Grab_Released();
+
+	//VR grabbing
 	void GripRightHand_Pressed();
 	void GripRightHand_Released();
 	void GripLeftHand_Pressed();
 	void GripLeftHand_Released();
 
-	class UGrabComponent* GetNearestGrabComponent(UMotionControllerComponent* mc);
-	std::vector<UGrabComponent*> GetNearbyGrabComponents(UMotionControllerComponent* mc);
+	class UGrabComponent* GetNearestGrabComponent(			FVector location);
+	std::vector<UGrabComponent*> GetNearbyGrabComponents(	FVector location);
 	
 	std::unordered_map<UMotionControllerComponent*, UGrabComponent*> mGrabs;
 	UGrabComponent* GetGrabbed(UMotionControllerComponent* mc);
 	//Is the mc parameter currently holding an item
 	bool GrabbingItem(UMotionControllerComponent* mc);
 
+	UGrabComponent* mBCIGrabbed = nullptr;
 #pragma endregion
 
 #pragma region VR Teleportation
@@ -192,6 +205,9 @@ public:
 	void Interact_Released();
 	void InteractRaycastFromCamera();
 	void InteractClosest();
+
+	//BCI
+	void Interact_BCIHand();
 	class IInteractable* GetNearestInteractable(FVector location);
 	std::vector<IInteractable*> GetNearbyInteractables(FVector location);
 
