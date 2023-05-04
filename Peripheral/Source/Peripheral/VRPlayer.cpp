@@ -46,11 +46,11 @@ AVRPlayer::AVRPlayer()
 	mRightMC = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("Right_MotionController"));
 	mRightMC->MotionSource = "Right";
 	//mRightMC->MotionSource = FXRMotionControllerBase::RightHandSourceId; //idk why this is done
-	mRightMC->SetupAttachment(mVROrigin);
+	mRightMC->SetupAttachment(mRoot);
 	
 	mLeftMC = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("Left_MotionController"));
 	mLeftMC->MotionSource = "Left";
-	mLeftMC->SetupAttachment(mVROrigin);
+	mLeftMC->SetupAttachment(mRoot);
 
 	//Create BCI hand
 	mBCIHand = CreateDefaultSubobject<UBCIHandComponent>(TEXT("BCI Hand"));
