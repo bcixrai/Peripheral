@@ -200,16 +200,16 @@ void AVRPlayer::SetCameraMode(EPeripheralMode mode)
 	switch (mode) {
 	case NORMAL:
 		//Camera should not be locked to the HeadMountedDispaly
-		mCamera->bLockToHmd = false;
+		//mCamera->bLockToHmd = false;
 		//The camera should use pawn rotation
-		mCamera->bUsePawnControlRotation = true;
+		//mCamera->bUsePawnControlRotation = true;
 		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To NORMAL")));
 		break;
 	case VR:
 		//Lock camera to HMD
-		mCamera->bLockToHmd = true;
+		//mCamera->bLockToHmd = true;
 		//Dont rotate pawn based on camera / vice versa
-		mCamera->bUsePawnControlRotation = false;
+		//mCamera->bUsePawnControlRotation = false;
 		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To VR")));
 		break;
 	}
