@@ -101,7 +101,7 @@ bool UGrabComponent::ForceGrab(USceneComponent* owner, bool handleAttachment)
 	//Handle attachment
 	GetOwner()->AttachToComponent(mOwner, FAttachmentTransformRules::KeepWorldTransform);
 	
-
+	OnGrabbed();
 	return true;
 }
 
@@ -118,6 +118,8 @@ bool UGrabComponent::ForceReleased(USceneComponent* owner, bool handleDeattachme
 	if (bSimulateOnDrop) {
 		SetPrimitveComponentPhysics(true);
 	}
+
+	OnReleased();
 	return false;
 }
 
