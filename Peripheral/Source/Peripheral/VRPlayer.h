@@ -126,8 +126,12 @@ public:
 	//Offset the BCI hand 
 	FVector mBCIHandOffset = FVector{ 0,0,0 };
 	//Can input be taken
-	bool bBCIInputEnabled = true;
 	
+	bool bBCIInputEnabled = true;
+
+	UFUNCTION(BlueprintCallable)
+		EBCIMode GetBCIModeFromPlayer();
+
 	UPROPERTY(EditAnywhere, Category = "BCI")
 		TEnumAsByte<EBCIHandMovementMode> mBCIHandMovementMode = On_Input;
 

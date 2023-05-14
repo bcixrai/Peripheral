@@ -34,6 +34,17 @@ void UBCIHandComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 
 void UBCIHandComponent::Configure(bool state)
 {
+	//state == true, == HAND ACTIVATED
+	if (!state) {
+		//Deactivate hand
 
+		SetHiddenInGame(true, true);
+		return;
+	}
+
+	SetHiddenInGame(false, true);
+
+
+	//stae == false == HAND DISABLED
 }
 

@@ -41,3 +41,9 @@ FProfile UPeripheralGameInstance::GetProfile(FString name)
 	}
 	return FProfile();
 }
+void UPeripheralGameInstance::SetBCIModeFromInstance(EBCIMode mode) {
+	SetBCIMode(mode);
+}
+EBCIMode UPeripheralGameInstance::GetBCIModeFromInstance() {
+	return GetBCIMode();
+}

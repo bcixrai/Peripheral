@@ -253,23 +253,33 @@ void AVRPlayer::ConfigureBCIMode(EBCIMode mode)
 		//What should happend here ?
 		//Disable BCI hand
 		mBCIHand->Configure(false);
+		if (bBCIInputEnabled) { //disable bci input if its active
+			SwapBCIInputEnabled();
+		}
 		break;
 	case BCI:
 		//What should happend here ?
+		if (!bBCIInputEnabled) {//Enable input if its not
+			SwapBCIInputEnabled();
+		}
 		//Enable BCI hand
 		mBCIHand->Configure(true);
 		//shoudl the BCI hand be parented to the camera ? 
-		bool parentCamera = GetPeripheralMode() == NORMAL;//if mode equals normal, the parent it to camera, in vr it should be parented to body
-		if (parentCamera) {
-			mBCIHand->AttachToComponent(mCamera, FAttachmentTransformRules::KeepWorldTransform);
+		// 
+		//if mode equals normal, the parent it to camera, in vr it should be parented to body
+		switch (GetPeripheralMode()) {
+		case NORMAL:
+			mBCIHand->AttachToComponent(mCamera, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			mBCIHand->SetRelativeLocation(FVector(100, 0, 0));
-		}
-		else {
+			break;
+		case VR:
 			mBCIHand->SetupAttachment(mRoot);
-
+			break;
 		}
 		break;
 	}
+	
+	
 }
 //Swaps between non-bci and bci mode
 void AVRPlayer::SwapGlobalBCIMode() {
@@ -277,12 +287,17 @@ void AVRPlayer::SwapGlobalBCIMode() {
 	if (mode == NO_BCI) {
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("BCI-mode set to BCI")));
 		SetBCIMode(BCI);
+
+		ConfigureBCIMode(GetBCIMode());
+		return;
 	}
 	if (mode == BCI) {
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("BCI-mode set to NO_BCI")));
 		SetBCIMode(NO_BCI);
+
+		ConfigureBCIMode(GetBCIMode());
+		return;
 	}
-	ConfigureBCIMode(GetBCIMode());
 }
 //Enables or disables Input to BCI HAnd
 void AVRPlayer::SwapBCIInputEnabled()
@@ -321,6 +336,11 @@ void AVRPlayer::BCIHandUpAndDown(float value)
 {
 	FVector dir = FVector{ 0, 0, value * mManualBCIHandMoveSpeedMultiplier };
 	MoveBCIHand(dir, 1);
+}
+
+EBCIMode AVRPlayer::GetBCIModeFromPlayer()
+{
+	return GetBCIMode();
 }
 
 void AVRPlayer::RecieveOSCInputAddressAndFloat(FString address, float value) {

@@ -116,14 +116,9 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable)
-	void SetBCIModeFromInstance(EBCIMode mode) {
-		SetBCIMode(mode);
-	}
+		void SetBCIModeFromInstance(EBCIMode mode);
 	UFUNCTION(BlueprintCallable)
-	EBCIMode GetBCIModeFromInstance() {
-		return GetBCIMode();
-	}
-	
+		EBCIMode GetBCIModeFromInstance();
 private:
 	
 	//Hands
