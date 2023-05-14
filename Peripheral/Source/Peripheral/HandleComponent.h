@@ -49,4 +49,14 @@ public:
 	virtual FVector GetInteractableLocation()override {
 		return GetComponentLocation();
 	};
+
+	UFUNCTION(BlueprintCallable)
+		void SetRotatorParent(USceneComponent* parent);
+
+	USceneComponent* mRotator = nullptr;
+	UPROPERTY(EditAnywhere)
+	float mRotationSpeed = 30;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		USkeletalMeshComponent* mBallerinaMesh;
 };

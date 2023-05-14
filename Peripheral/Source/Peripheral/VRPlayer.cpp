@@ -222,7 +222,7 @@ void AVRPlayer::MoveForward(float value)
 	{
 		FVector dir = bFlyingCamera ? mCamera->GetForwardVector() : GetActorForwardVector();
 		// add movement in that direction
-		AddMovementInput(dir, value);
+		AddMovementInput(dir, mMoveSpeed * value * GetWorld()->GetDeltaSeconds());
 	}
 }
 
@@ -232,7 +232,7 @@ void AVRPlayer::MoveRight(float value)
 	{
 		FVector dir = bFlyingCamera ? mCamera->GetRightVector() : GetActorRightVector();
 		// add movement in that direction
-		AddMovementInput(GetActorRightVector(), value);
+		AddMovementInput(dir, mMoveSpeed * value * GetWorld()->GetDeltaSeconds());
 	}
 }
 void AVRPlayer::Turn(float value)

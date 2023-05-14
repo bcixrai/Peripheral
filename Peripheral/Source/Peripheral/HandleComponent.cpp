@@ -34,7 +34,7 @@ void UHandleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		auto theta = FMath::Acos(FVector::DotProduct(a, b) / (a.Length() * b.Length()));
 		auto rot = mHandle->GetRelativeRotation();
 		auto delta = rot.Roll - (FMath::RadiansToDegrees(theta) * sign);
-		mCollectedRotation += delta * mDeltaMultiplierRate;
+		mCollectedRotation += FMath::Abs(delta * mDeltaMultiplierRate) * DeltaTime;
 		rot.Roll = (FMath::RadiansToDegrees(theta) * sign);
 		mHandle->SetRelativeRotation(rot);
 
@@ -46,7 +46,29 @@ void UHandleComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	if (mCollectedRotation > 0) {
 		//Play audio
 
+		GEngine->AddOnScreenDebugMessage(750, 5, FColor::Cyan, FString::Printf(TEXT("CollectedRoation : %f"), mCollectedRotation));
 		mCollectedRotation -= mDecayRate * DeltaTime;
+
+		if (mCollectedRotation < 0) {
+			if (mBallerinaMesh) {
+				mBallerinaMesh->Stop();
+			}
+			mCollectedRotation = 0;
+			return;
+		}
+		if (mBallerinaMesh) {
+			if (!mBallerinaMesh->IsPlaying()) {
+				mBallerinaMesh->Play(true);
+			}
+		}
+		//PLAY MUSIC 
+		// 
+		//ROTATE THE ROTATOR
+		auto rot = mRotator->GetRelativeRotation();
+		rot.Yaw += mRotationSpeed * DeltaTime;
+		mRotator->SetRelativeRotation(rot);
+
+		
 	}
 	
 }
@@ -144,4 +166,9 @@ void UHandleComponent::Turn()
 	rot.Roll += GetWorld()->GetDeltaSeconds() * mTurnSpeed;
 
 	SetWorldRotation(rot);
+}
+
+void UHandleComponent::SetRotatorParent(USceneComponent* parent)
+{
+	mRotator = parent;
 }
