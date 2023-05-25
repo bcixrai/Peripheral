@@ -8,7 +8,7 @@ AMusicBox::AMusicBox()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Base"));
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	mHandle = CreateDefaultSubobject<UHandleComponent>(TEXT("Handle"));
 	mHandle->SetupAttachment(RootComponent);
 }

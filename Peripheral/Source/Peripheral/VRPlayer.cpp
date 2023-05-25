@@ -97,6 +97,10 @@ void AVRPlayer::BeginPlay()
 			mTeleportAimMesh = mesh;
 		}
 	}
+
+	if (!GetBCIMode() == BCI) {
+		SwapGlobalBCIMode();
+	}
 }
 
 // Called every frame
@@ -318,6 +322,7 @@ void AVRPlayer::MoveBCIHand(FVector dir, float strength)
 	auto delta = dir * speed;
 
 	mBCIHand->AddRelativeLocation(delta);
+
 }
 
 void AVRPlayer::BCIHandRightAndLeft(float value)
@@ -400,21 +405,31 @@ void AVRPlayer::RecieveOSCInputAddressAndFloat(FString address, float value) {
 }
 void AVRPlayer::MentalCommandMovementInput(FVector direction, float strength)
 {
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("MOVEMENT"));
+
 	//Dont apply if we're not in BCI mode
 	auto mode = GetBCIMode();
 	if (mode != BCI) {
+
+		GEngine->AddOnScreenDebugMessage(412, 5, FColor::Green, TEXT("NO MOVEMENT CUZ NOT BCI MODE"));
 		return;
 	}
 	//Check for disabled input
 	if (!bBCIInputEnabled) {
+
+		GEngine->AddOnScreenDebugMessage(413, 5, FColor::Green, TEXT("MOVEMENT NOT ENABELD"));
 		return;
 	}
 	switch (mBCIHandMovementMode) {
 	case On_Input:
 		MoveBCIHand(direction, strength);
+		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("On input mvoe"));
+
 		break;
 	case On_Update:
 		mBCIHandMovementDirection = direction;
+		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("On update move"));
+
 		mMentalCommandStrength = strength;
 		break;
 	}
