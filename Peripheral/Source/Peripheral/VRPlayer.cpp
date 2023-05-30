@@ -78,12 +78,29 @@ void AVRPlayer::BeginPlay()
 	if (mode == VR) {
 		//Normal VR without any overrides, 
 		
+		//Set at floor level
+
+		auto start = GetActorLocation();
+		auto end = start + (-GetActorUpVector() * 100000.f);
+		FHitResult Hit;
+		// You can use FCollisionQueryParams to further configure the query
+		// Here we add ourselves to the ignored list so we won't block the trace
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(this);
+
+		// To run the query, you need a pointer to the current level, which you can get from an Actor with GetWorld()
+		// UWorld()->LineTraceSingleByChannel runs a line trace and returns the first actor hit over the provided collision channel.
+		GetWorld()->LineTraceSingleByChannel(Hit, start, end, ECC_Visibility, QueryParams);
+
+		if (Hit.GetActor()) {
+			SetActorLocation(Hit.Location);
+		}
 	}
 	auto bciMode = GetBCIMode();
 	SetBCIMode(bciMode);
 	SetCameraMode(mode);
-	auto comps = GetComponents();
 
+	auto comps = GetComponents();
 	TArray<USceneComponent*> sceneComps;
 	mTeleportGraphic->GetChildrenComponents(false, sceneComps);
 
@@ -103,6 +120,10 @@ void AVRPlayer::BeginPlay()
 	mTeleportGraphic->SetHiddenInGame(true, true);
 
 	mTeleportRayFrom = mCamera;
+
+
+	
+
 }
 
 // Called every frame
@@ -714,7 +735,7 @@ bool AVRPlayer::IsValidTeleportLocation(FHitResult hit)
 	FNavLocation OutLocation;
 	UNavigationSystemV1* NavSystem = Cast<UNavigationSystemV1>(GetWorld()->GetNavigationSystem());
 	auto bHitNav = NavSystem->ProjectPointToNavigation(hit.Location,OutLocation);
-	return bHitNav;
+	return true;
 }
 
 void AVRPlayer::TeleportVisuals()
