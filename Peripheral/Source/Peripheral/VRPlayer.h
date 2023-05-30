@@ -180,8 +180,18 @@ public:
 	//Teleporting
 	void Teleport_Pressed();
 	void Teleport_Released();
+
+	void TeleportRightHand_Released();
+	void TeleportRightHand_Pressed();
+	void TeleportLeftHand_Pressed();
+	void TeleportLeftHand_Released();
+
 	bool TryTeleport();
 	bool IsValidTeleportLocation(FHitResult hit);
+
+	void TeleportVisuals();
+
+	USceneComponent* mTeleportRayFrom;
 
 	FHitResult GetTeleportAimHit();
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

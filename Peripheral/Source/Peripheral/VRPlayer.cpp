@@ -22,7 +22,7 @@
 //VR
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
 #include "HeadMountedDisplayFunctionLibrary.h"
-
+#include "DrawDebugHelpers.h"
 // Sets default values
 AVRPlayer::AVRPlayer()
 {
@@ -82,10 +82,6 @@ void AVRPlayer::BeginPlay()
 	auto bciMode = GetBCIMode();
 	SetBCIMode(bciMode);
 	SetCameraMode(mode);
-
-	//What do we want to do different here
-	mTeleportGraphic->SetHiddenInGame(true);
-
 	auto comps = GetComponents();
 
 	TArray<USceneComponent*> sceneComps;
@@ -101,6 +97,12 @@ void AVRPlayer::BeginPlay()
 	if (!GetBCIMode() == BCI) {
 		SwapGlobalBCIMode();
 	}
+
+
+	//TELEPORTING
+	mTeleportGraphic->SetHiddenInGame(true, true);
+
+	mTeleportRayFrom = mCamera;
 }
 
 // Called every frame
@@ -126,22 +128,7 @@ void AVRPlayer::Tick(float DeltaTime)
 	}
 
 	if (bTeleporting) {
-		auto hit = GetTeleportAimHit();
-		if (hit.GetActor()) {
-			mTeleportLocation = GetTeleportAimHit().Location;
-		}
-		mTeleportGraphic->SetWorldLocation(hit.Location);
-
-		//Change colors baed on if its legal or not
-		bool legal = IsValidTeleportLocation(hit);
-		if (legal) {
-			GEngine->AddOnScreenDebugMessage(10, 1, FColor::Green, FString::Printf(TEXT("Teleport")));
-			mTeleportAimMesh->SetMaterial(0, mCanTeleportMat);
-		}
-		else {
-			mTeleportAimMesh->SetMaterial(0, mCantTeleportMat);
-			GEngine->AddOnScreenDebugMessage(10, 1, FColor::Red, FString::Printf(TEXT("Teleport")));
-		}
+		TeleportVisuals();
 	}
 }
 
@@ -159,8 +146,11 @@ void AVRPlayer::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	//Teleportation for VR Controlelrs
 	InputComponent->BindAction("Teleport", IE_Pressed, this, &AVRPlayer::Teleport_Pressed);
-	InputComponent->BindAction("Teleport", IE_Pressed, this, &AVRPlayer::Teleport_Released);
-
+	InputComponent->BindAction("Teleport", IE_Released, this, &AVRPlayer::Teleport_Released);
+	InputComponent->BindAction("TeleportRight", IE_Pressed, this,	&AVRPlayer::TeleportRightHand_Pressed);
+	InputComponent->BindAction("TeleportRight", IE_Released, this,	&AVRPlayer::TeleportRightHand_Released);
+	InputComponent->BindAction("TeleportLeft", IE_Pressed, this,	&AVRPlayer::TeleportLeftHand_Pressed);
+	InputComponent->BindAction("TeleportLeft", IE_Released, this,	&AVRPlayer::TeleportLeftHand_Released);
 	//Grabbing for VR Controllers
 	InputComponent->BindAction("GrabRight", IE_Pressed, this, &AVRPlayer::GripRightHand_Pressed);
 	InputComponent->BindAction("GrabRight", IE_Released, this, &AVRPlayer::GripRightHand_Released);
@@ -201,6 +191,7 @@ void AVRPlayer::Debug() {
 
 void AVRPlayer::SetCameraMode(EPeripheralMode mode)
 {
+	bUseControllerRotationPitch = mode == NORMAL ? true : false;//If in normal mode, use controller rotation, in vr mode, dont
 	switch (mode) {
 	case NORMAL:
 		//Camera should not be locked to the HeadMountedDispaly
@@ -208,6 +199,7 @@ void AVRPlayer::SetCameraMode(EPeripheralMode mode)
 		//The camera should use pawn rotation
 		//mCamera->bUsePawnControlRotation = true;
 		//GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Set Camera To NORMAL")));
+		
 		break;
 	case VR:
 		//Lock camera to HMD
@@ -483,11 +475,11 @@ void AVRPlayer::GripRightHand_Released()
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, TEXT("Right Hand Grip Released"));
 	UE_LOG(LogTemp, Log, TEXT("Rigth Hand Grip Released"));
-	auto grab = GetNearestGrabComponent(mRightMC->GetComponentLocation());
-	if (!grab) {
+	if (!mGrabs[mRightMC]) {
 		return;
 	}
-	bool released = grab->TryRelease();
+
+	bool released = mGrabs[mRightMC]->TryRelease();
 	if (!released) {
 		return;
 	}
@@ -646,26 +638,59 @@ bool AVRPlayer::GrabbingItem(UMotionControllerComponent* mc)
 #pragma region Teleportation
 void AVRPlayer::Teleport_Pressed()
 {
+	
 	bTeleporting = true;
 
-	mTeleportGraphic->SetHiddenInGame(false);
+	mTeleportGraphic->SetHiddenInGame(false, true);
+
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Teleport Started")));
 }
 
 void AVRPlayer::Teleport_Released()
 {
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("Player : Teleport Ended")));
+
 	bTeleporting = false;
 
 	bool canTeleport = TryTeleport();
 	if (!canTeleport) {
+
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : Can not teleport")));
 		return;
 	}
 
+	//TODO FIX THIS
+	//We need camera offset to take effect
+	auto offset = GetActorLocation() - mCamera->GetComponentLocation();
+
 	SetActorLocation(mTeleportLocation);
+	
+	mTeleportGraphic->SetHiddenInGame(true, true);//Hide teleport graphic
 
-
-	mTeleportGraphic->SetHiddenInGame(true);
+	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Player : Teleported")));
+	mTeleportRayFrom = mCamera;
 }
+void AVRPlayer::TeleportRightHand_Pressed() {
+	
+	mTeleportRayFrom = mRightMC;//We want to teleport from Right Hand
+	Teleport_Pressed();
+};
+void AVRPlayer::TeleportRightHand_Released(){
 
+	mTeleportRayFrom = mCamera;//reset to camera teleporting
+	Teleport_Released();
+};
+
+void AVRPlayer::TeleportLeftHand_Pressed(){
+
+	mTeleportRayFrom = mLeftMC;//teleport from left mc
+	Teleport_Pressed();
+};
+void AVRPlayer::TeleportLeftHand_Released() {
+
+	mTeleportRayFrom = mCamera;//reset to camera
+	Teleport_Released();
+};
 bool AVRPlayer::TryTeleport()
 {
 	//Find where we are aiming from
@@ -689,21 +714,67 @@ bool AVRPlayer::IsValidTeleportLocation(FHitResult hit)
 	FNavLocation OutLocation;
 	UNavigationSystemV1* NavSystem = Cast<UNavigationSystemV1>(GetWorld()->GetNavigationSystem());
 	auto bHitNav = NavSystem->ProjectPointToNavigation(hit.Location,OutLocation);
-	return true;
+	return bHitNav;
+}
+
+void AVRPlayer::TeleportVisuals()
+{
+	//If we are holding the teleport button
+	auto hit = GetTeleportAimHit();
+
+	if (!hit.IsValidBlockingHit() || !hit.GetActor()) {//Check if actually hit somethin we can teleport too
+
+		GEngine->AddOnScreenDebugMessage(566, 2, FColor::Red, FString::Printf(TEXT("Player : Teleport Hit Non Blocking or No Actor!")));
+		return;
+	}
+	//Display actor name
+	GEngine->AddOnScreenDebugMessage(567, 5, FColor::Cyan, FString::Printf(TEXT("Player : Teleport Actor Hit :  %s"), *hit.GetActor()->GetName()));
+
+	mTeleportLocation = hit.Location;//cache location
+	mTeleportGraphic->SetWorldLocation(mTeleportLocation);//Set the location of the teleport graphic
+
+	//Change colors baed on if its legal or not
+	bool legal = IsValidTeleportLocation(hit);
+	mTeleportAimMesh->SetMaterial(0, legal ? mCanTeleportMat : mCantTeleportMat);//Change material
+	GEngine->AddOnScreenDebugMessage(568, 1, legal ? FColor::Green : FColor::Red, FString::Printf(TEXT("Player : Can Teleport")));
 }
 
 FHitResult AVRPlayer::GetTeleportAimHit()
 {
-	//Cast ray from aim start
-	auto rayStart = mTeleportAimStart->GetComponentLocation();
-	auto forw = mTeleportAimStart->GetForwardVector();
-	FVector rayEnd = rayStart + forw * mTeleportMaxRange;
+	if (!mTeleportRayFrom) {
 
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : No Teleport Ray From")));
+		FHitResult Hit;
+		Hit.bBlockingHit = false;
+		return Hit;
+	}
+	//Cast ray from aim start
+	auto rayStart = mTeleportRayFrom->GetComponentLocation();
+	auto forw = mTeleportRayFrom->GetForwardVector();
+	FVector rayEnd = rayStart + forw * mTeleportMaxRange;
+	FHitResult Hit;
+	// You can use FCollisionQueryParams to further configure the query
+	// Here we add ourselves to the ignored list so we won't block the trace
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
-
-	FHitResult Hit;
-	GetWorld()->LineTraceSingleByObjectType(Hit, rayStart, rayEnd, ECC_WorldDynamic, QueryParams); // simple trace function
+	
+	// To run the query, you need a pointer to the current level, which you can get from an Actor with GetWorld()
+	// UWorld()->LineTraceSingleByChannel runs a line trace and returns the first actor hit over the provided collision channel.
+	GetWorld()->LineTraceSingleByChannel(Hit, rayStart, rayEnd, ECC_Visibility, QueryParams);
+	
+	// You can use DrawDebug helpers and the log to help visualize and debug your trace queries.
+	//DrawDebugLine(GetWorld(), rayStart, rayEnd, Hit.bBlockingHit ? FColor::Blue : FColor::Red, false, 5.0f, 0, 10.0f);
+	//UE_LOG(LogTemp, Log, TEXT("Tracing line: %s to %s"), *rayStart.ToCompactString(), *rayEnd.ToCompactString());
+	
+	// If the trace hit something, bBlockingHit will be true,
+	// and its fields will be filled with detailed info about what was hit
+	if (Hit.bBlockingHit && IsValid(Hit.GetActor()))
+	{
+		//UE_LOG(LogTemp, Log, TEXT("Trace hit actor: %s"), *Hit.GetActor()->GetName());
+	}
+	else {
+		//UE_LOG(LogTemp, Log, TEXT("No Actors were hit"));
+	}
 	return Hit;
 }
 
