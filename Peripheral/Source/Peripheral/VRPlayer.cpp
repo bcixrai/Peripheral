@@ -547,7 +547,8 @@ void AVRPlayer::Grab_Pressed()
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : No grabables near BCI Hand")));
 		return;
 	}
-	auto grabbed = grab->ForceGrab(mBCIHand, true);
+	auto grabbed = grab->TryGrab(mBCIHand);
+	//auto grabbed = grab->ForceGrab(mBCIHand, true);
 	if (!grabbed) {
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : Grab did not accept!")));
 		return;
@@ -562,7 +563,11 @@ void AVRPlayer::Grab_Released()
 	if (!mBCIGrabbed) {
 		return;
 	}
-	mBCIGrabbed->ForceReleased(mBCIHand, true);
+	auto released = mBCIGrabbed->TryRelease();
+	//auto released = mBCIGrabbed->ForceReleased(mBCIHand, true);
+	if (!released) {
+		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, FString::Printf(TEXT("Player : BCI Hand Did not release for some reason %s"), *mBCIGrabbed->GetOwner()->GetName()));
+	}
 
 	GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Green, FString::Printf(TEXT("Player : BCI Hand released %s"), *mBCIGrabbed->GetOwner()->GetName()));
 	mBCIGrabbed = nullptr;
