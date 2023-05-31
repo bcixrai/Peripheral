@@ -70,8 +70,8 @@ void AVRPlayer::BeginPlay()
 	if (mode == NORMAL) {
 		//We're using neither VR nor BCI, then we want to play as a regular fps game ? 
 	
-		mRightMC->SetHiddenInGame(true);
-		mLeftMC->SetHiddenInGame(true);
+		//mRightMC->SetHiddenInGame(true);
+		//mLeftMC->SetHiddenInGame(true);
 		bUseControllerRotationYaw = true;
 	}
 	
@@ -80,21 +80,21 @@ void AVRPlayer::BeginPlay()
 		
 		//Set at floor level
 
-		auto start = GetActorLocation();
-		auto end = start + (-GetActorUpVector() * 100000.f);
-		FHitResult Hit;
-		// You can use FCollisionQueryParams to further configure the query
-		// Here we add ourselves to the ignored list so we won't block the trace
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(this);
-
-		// To run the query, you need a pointer to the current level, which you can get from an Actor with GetWorld()
-		// UWorld()->LineTraceSingleByChannel runs a line trace and returns the first actor hit over the provided collision channel.
-		GetWorld()->LineTraceSingleByChannel(Hit, start, end, ECC_Visibility, QueryParams);
-
-		if (Hit.GetActor()) {
-			SetActorLocation(Hit.Location);
-		}
+		//auto start = GetActorLocation();
+		//auto end = start + (-GetActorUpVector() * 100000.f);
+		//FHitResult Hit;
+		//// You can use FCollisionQueryParams to further configure the query
+		//// Here we add ourselves to the ignored list so we won't block the trace
+		//FCollisionQueryParams QueryParams;
+		//QueryParams.AddIgnoredActor(this);
+		//
+		//// To run the query, you need a pointer to the current level, which you can get from an Actor with GetWorld()
+		//// UWorld()->LineTraceSingleByChannel runs a line trace and returns the first actor hit over the provided collision channel.
+		//GetWorld()->LineTraceSingleByChannel(Hit, start, end, ECC_Visibility, QueryParams);
+		//
+		//if (Hit.GetActor()) {
+		//	SetActorLocation(Hit.Location);
+		//}
 	}
 	auto bciMode = GetBCIMode();
 	SetBCIMode(bciMode);
@@ -682,9 +682,10 @@ void AVRPlayer::Teleport_Released()
 
 	//TODO FIX THIS
 	//We need camera offset to take effect
-	auto offset = GetActorLocation() - mCamera->GetComponentLocation();
-
-	SetActorLocation(mTeleportLocation);
+	auto camPos =  mCamera->GetRelativeLocation();
+	mTeleportLocation = mTeleportGraphic->GetComponentLocation();
+	auto newLoc = FVector(mTeleportLocation.X - camPos.X, mTeleportLocation.Y - camPos.Y, mTeleportLocation.Z);
+	SetActorLocation(newLoc);
 	
 	mTeleportGraphic->SetHiddenInGame(true, true);//Hide teleport graphic
 
